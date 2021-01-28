@@ -114,16 +114,24 @@ class GeneralLedgerApiConnector extends BaseApiConnector
         array $options = []
     ): array {
         $forcedOptions['level'] = 1;
-        $optionsArrayOfString = $this->convertOptionsToArrayOfString($options, $forcedOptions);
-
-        $response = $this->getFinderService()->searchFinder(FinderService::TYPE_DIMENSIONS_FINANCIALS, $pattern, $field, $firstRow, $maxRows, $optionsArrayOfString);
+        $response = $this->getFinderService()->searchFinder(FinderService::TYPE_DIMENSIONS_FINANCIALS, $pattern, $field, $firstRow, $maxRows, $options);
 
         $generalLedgerListAllTags = array(
             0       => 'setCode',
             1       => 'setName',
         );
+        if ($response->data->TotalRows == 0) {
+            return [];
+        }
 
-        return $this->mapListAll(GeneralLedger::class, $response->data, $generalLedgerListAllTags);
+        $ledgers = [];
+        foreach ($response->data->Items->ArrayOfString as $ledgerArray) {
+            $ledger = new GeneralLedger();
+            $ledger->setCode($ledgerArray->string[0]);
+            $ledger->setName($ledgerArray->string[1]);
+            $ledgers[] = $ledger;
+        }
+        return $ledgers;
     }
 
     /**
