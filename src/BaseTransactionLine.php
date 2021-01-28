@@ -139,7 +139,7 @@ abstract class BaseTransactionLine implements TransactionLine
      * @param int|null $id
      * @return $this
      */
-    public function setId(?int $id): BaseTransactionLine
+    public function setId($id): BaseTransactionLine
     {
         $this->id = $id;
 
