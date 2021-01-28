@@ -2,10 +2,10 @@
 
 namespace PhpTwinfield\ApiConnectors;
 
-use PhpTwinfield\DomDocuments\FixedAssetsDocument;
+use PhpTwinfield\DomDocuments\GeneralLedgersDocument;
 use PhpTwinfield\Exception;
-use PhpTwinfield\FixedAsset;
-use PhpTwinfield\Mappers\FixedAssetMapper;
+use PhpTwinfield\GeneralLedger;
+use PhpTwinfield\Mappers\GeneralLedgerMapper;
 use PhpTwinfield\Office;
 use PhpTwinfield\Request as Request;
 use PhpTwinfield\Response\MappedResponseCollection;
@@ -16,76 +16,78 @@ use Webmozart\Assert\Assert;
 
 /**
  * A facade to make interaction with the the Twinfield service easier when trying to retrieve or send information about
- * FixedAssets.
+ * GeneralLedgers.
  *
  * If you require more complex interactions or a heavier amount of control over the requests to/from then look inside
  * the methods or see the advanced guide detailing the required usages.
  *
  * @author Yannick Aerssens <y.r.aerssens@gmail.com>
  */
-class FixedAssetApiConnector extends BaseApiConnector
+class GeneralLedgerApiConnector extends BaseApiConnector
 {
     /**
-     * Requests a specific FixedAsset based off the passed in code and optionally the office.
+     * Requests a specific GeneralLedger based off the passed in code, dimension type and optionally the office.
      *
      * @param string $code
+     * @param string $dimType
      * @param Office $office If no office has been passed it will instead take the default office from the
      *                       passed in config class.
-     * @return FixedAsset    The requested FixedAsset or FixedAsset object with error message if it can't be found.
+     * @return GeneralLedger The requested GeneralLedger or GeneralLedger object with error message if it can't be found.
      * @throws Exception
      */
-    public function get(string $code, Office $office): FixedAsset
+    public function get(string $code, string $dimType, Office $office): GeneralLedger
     {
-        // Make a request to read a single FixedAsset. Set the required values
-        $request_fixedAsset = new Request\Read\FixedAsset();
-        $request_fixedAsset
+        // Make a request to read a single GeneralLedger. Set the required values
+        $request_generalLedger = new Request\Read\GeneralLedger();
+        $request_generalLedger
             ->setOffice($office)
+            ->setDimType($dimType)
             ->setCode($code);
 
         // Send the Request document and set the response to this instance.
-        $response = $this->sendXmlDocument($request_fixedAsset);
+        $response = $this->sendXmlDocument($request_generalLedger);
 
-        return FixedAssetMapper::map($response, $this->getConnection());
+        return GeneralLedgerMapper::map($response);
     }
 
     /**
-     * Sends a FixedAsset instance to Twinfield to update or add.
+     * Sends a GeneralLedger instance to Twinfield to update or add.
      *
-     * @param FixedAsset $fixedAsset
-     * @return FixedAsset
+     * @param GeneralLedger $generalLedger
+     * @return GeneralLedger
      * @throws Exception
      */
-    public function send(FixedAsset $fixedAsset): FixedAsset
+    public function send(GeneralLedger $generalLedger): GeneralLedger
     {
-        foreach($this->sendAll([$fixedAsset]) as $each) {
+        foreach($this->sendAll([$generalLedger]) as $each) {
             return $each->unwrap();
         }
     }
 
     /**
-     * @param FixedAsset[] $fixedAssets
+     * @param GeneralLedger[] $generalLedgers
      * @return MappedResponseCollection
      * @throws Exception
      */
-    public function sendAll(array $fixedAssets): MappedResponseCollection
+    public function sendAll(array $generalLedgers): MappedResponseCollection
     {
-        Assert::allIsInstanceOf($fixedAssets, FixedAsset::class);
+        Assert::allIsInstanceOf($generalLedgers, GeneralLedger::class);
 
         /** @var Response[] $responses */
         $responses = [];
 
-        foreach ($this->getProcessXmlService()->chunk($fixedAssets) as $chunk) {
-            $fixedAssetsDocument = new FixedAssetsDocument();
+        foreach ($this->getProcessXmlService()->chunk($generalLedgers) as $chunk) {
+            $generalLedgersDocument = new GeneralLedgersDocument();
 
-            foreach ($chunk as $fixedAsset) {
-                $fixedAssetsDocument->addFixedAsset($fixedAsset);
+            foreach ($chunk as $generalLedger) {
+                $generalLedgersDocument->addGeneralLedger($generalLedger);
             }
 
-            $responses[] = $this->sendXmlDocument($fixedAssetsDocument);
+            $responses[] = $this->sendXmlDocument($generalLedgersDocument);
         }
 
-        return $this->getProcessXmlService()->mapAll($responses, "dimension", function(Response $response): FixedAsset {
-            return FixedAssetMapper::map($response, $this->getConnection());
+        return $this->getProcessXmlService()->mapAll($responses, "dimension", function(Response $response): GeneralLedger {
+            return GeneralLedgerMapper::map($response);
         });
     }
 
@@ -102,7 +104,7 @@ class FixedAssetApiConnector extends BaseApiConnector
      *                         to add multiple options. An option name may be used once, specifying an option multiple
      *                         times will cause an error.
      *
-     * @return FixedAsset[] The fixed assets found.
+     * @return GeneralLedger[] The fixed assets found.
      */
     public function listAll(
         string $pattern = '*',
@@ -111,44 +113,45 @@ class FixedAssetApiConnector extends BaseApiConnector
         int $maxRows = 100,
         array $options = []
     ): array {
-        $forcedOptions['dimtype'] = "AST";
+        $forcedOptions['level'] = 1;
         $optionsArrayOfString = $this->convertOptionsToArrayOfString($options, $forcedOptions);
 
         $response = $this->getFinderService()->searchFinder(FinderService::TYPE_DIMENSIONS_FINANCIALS, $pattern, $field, $firstRow, $maxRows, $optionsArrayOfString);
 
-        $fixedAssetListAllTags = array(
+        $generalLedgerListAllTags = array(
             0       => 'setCode',
             1       => 'setName',
         );
 
-        return $this->mapListAll(FixedAsset::class, $response->data, $fixedAssetListAllTags);
+        return $this->mapListAll(GeneralLedger::class, $response->data, $generalLedgerListAllTags);
     }
 
     /**
-     * Deletes a specific FixedAsset based off the passed in code and optionally the office.
+     * Deletes a specific GeneralLedger based off the passed in code and optionally the office.
      *
      * @param string $code
+     * @param string $dimType
      * @param Office $office If no office has been passed it will instead take the default office from the
      *                       passed in config class.
-     * @return FixedAsset    The deleted FixedAsset or FixedAsset object with error message if it can't be found.
+     * @return GeneralLedger The deleted GeneralLedger or GeneralLedger object with error message if it can't be found.
      * @throws Exception
      */
-    public function delete(string $code, Office $office): FixedAsset
+    public function delete(string $code, string $dimType, Office $office): GeneralLedger
     {
-        $fixedAsset = self::get($code, $office);
+        $generalLedger = self::get($code, $dimType, $office);
 
-        if ($fixedAsset->getResult() == 1) {
-            $fixedAsset->setStatus(\PhpTwinfield\Enums\Status::DELETED());
+        if ($generalLedger->getResult() == 1) {
+            $generalLedger->setStatus(\PhpTwinfield\Enums\Status::DELETED());
 
             try {
-                $fixedAssetDeleted = self::send($fixedAsset);
+                $generalLedgerDeleted = self::send($generalLedger);
             } catch (ResponseException $e) {
-                $fixedAssetDeleted = $e->getReturnedObject();
+                $generalLedgerDeleted = $e->getReturnedObject();
             }
 
-            return $fixedAssetDeleted;
+            return $generalLedgerDeleted;
         } else {
-            return $fixedAsset;
+            return $generalLedger;
         }
     }
 }
